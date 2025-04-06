@@ -148,15 +148,6 @@ class {$modelName} extends Model
         }
     }
 
-    // protected function generateController($modelName)
-    // {
-    //     $this->call('make:controller', [
-    //         'name' => "{$modelName}Controller",
-    //         '--resource' => true,
-    //         '--model' => $modelName,
-    //     ]);
-    // }
-
     protected function generateRoutes($modelName)
     {
         // Get the fully qualified controller class name
@@ -178,53 +169,11 @@ class {$modelName} extends Model
 
     protected function generateController($modelName)
     {
-        $controllerTemplate = "<?php
-
-namespace App\Http\Controllers;
-
-use App\Models\\{$modelName};
-use App\Http\Requests\\{$modelName}StoreRequest;
-use App\Http\Requests\\{$modelName}UpdateRequest;
-
-class {$modelName}Controller extends Controller
-{
-    public function index()
-    {
-        return {$modelName}::all();
-    }
-
-    public function store({$modelName}StoreRequest \$request)
-    {
-        \$model = {$modelName}::create(\$request->validated());
-        return response()->json(\$model, 201);
-    }
-
-    public function show({$modelName} \$model)
-    {
-        return response()->json(\$model);
-    }
-
-    public function update({$modelName}UpdateRequest \$request, {$modelName} \$model)
-    {
-        \$model->update(\$request->validated());
-        return response()->json(\$model);
-    }
-
-    public function destroy({$modelName} \$model)
-    {
-        \$model->delete();
-        return response()->json(null, 204);
-    }
-}
-";
-
+        $controllerTemplate = file_get_contents(resource_path('stubs/controller.stub'));
+        $controllerTemplate = str_replace('{{modelName}}', $modelName, $controllerTemplate);
         File::put(app_path("Http/Controllers/{$modelName}Controller.php"), $controllerTemplate);
-
-        // Generate routes after controller creation
-    $this->generateRoutes($modelName);
+        $this->generateRoutes($modelName);
     }
-
-
     protected function generateRequests($modelName)
     {
         $this->call('make:request', ['name' => "{$modelName}StoreRequest"]);

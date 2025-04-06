@@ -25,3 +25,5 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('/{id}', [UserController::class, 'destroy']);
     });
 });
+
+Route::apiResource('Invoices', App\Http\Controllers\InvoiceController::class);
