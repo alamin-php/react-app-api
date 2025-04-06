@@ -157,6 +157,25 @@ class {$modelName} extends Model
     //     ]);
     // }
 
+    protected function generateRoutes($modelName)
+    {
+        // Get the fully qualified controller class name
+        $controllerNamespace = "App\\Http\\Controllers\\{$modelName}Controller";
+
+        // Define the route string for the API and Web routes
+        $apiRoute = "Route::apiResource('{$modelName}s', {$controllerNamespace}::class);";
+        $webRoute = "Route::resource('{$modelName}s', {$controllerNamespace}::class);";
+
+        // Add API route to api.php
+        $apiFilePath = base_path('routes/api.php');
+        file_put_contents($apiFilePath, "\n" . $apiRoute, FILE_APPEND);
+
+        // Add Web route to web.php
+        $webFilePath = base_path('routes/web.php');
+        file_put_contents($webFilePath, "\n" . $webRoute, FILE_APPEND);
+    }
+
+
     protected function generateController($modelName)
     {
         $controllerTemplate = "<?php
@@ -200,6 +219,9 @@ class {$modelName}Controller extends Controller
 ";
 
         File::put(app_path("Http/Controllers/{$modelName}Controller.php"), $controllerTemplate);
+
+        // Generate routes after controller creation
+    $this->generateRoutes($modelName);
     }
 
 
