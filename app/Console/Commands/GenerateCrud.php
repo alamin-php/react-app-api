@@ -63,7 +63,8 @@ class GenerateCrud extends Command
         $migrationFields = "";
 
         foreach ($fieldArray as $field) {
-            if (!str_contains($field, ':')) continue;
+            if (!str_contains($field, ':'))
+                continue;
 
             [$name, $type] = explode(':', $field, 2);  // Limit to 2 to avoid enum issue
 
@@ -147,14 +148,60 @@ class {$modelName} extends Model
         }
     }
 
+    // protected function generateController($modelName)
+    // {
+    //     $this->call('make:controller', [
+    //         'name' => "{$modelName}Controller",
+    //         '--resource' => true,
+    //         '--model' => $modelName,
+    //     ]);
+    // }
+
     protected function generateController($modelName)
     {
-        $this->call('make:controller', [
-            'name' => "{$modelName}Controller",
-            '--resource' => true,
-            '--model' => $modelName,
-        ]);
+        $controllerTemplate = "<?php
+
+namespace App\Http\Controllers;
+
+use App\Models\\{$modelName};
+use App\Http\Requests\\{$modelName}StoreRequest;
+use App\Http\Requests\\{$modelName}UpdateRequest;
+
+class {$modelName}Controller extends Controller
+{
+    public function index()
+    {
+        return {$modelName}::all();
     }
+
+    public function store({$modelName}StoreRequest \$request)
+    {
+        \$model = {$modelName}::create(\$request->validated());
+        return response()->json(\$model, 201);
+    }
+
+    public function show({$modelName} \$model)
+    {
+        return response()->json(\$model);
+    }
+
+    public function update({$modelName}UpdateRequest \$request, {$modelName} \$model)
+    {
+        \$model->update(\$request->validated());
+        return response()->json(\$model);
+    }
+
+    public function destroy({$modelName} \$model)
+    {
+        \$model->delete();
+        return response()->json(null, 204);
+    }
+}
+";
+
+        File::put(app_path("Http/Controllers/{$modelName}Controller.php"), $controllerTemplate);
+    }
+
 
     protected function generateRequests($modelName)
     {
