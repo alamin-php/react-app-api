@@ -1,0 +1,37 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Models\{{modelName}};
+use App\Http\Requests\{{modelName}}Request;
+
+class {{modelName}}Controller extends Controller
+{
+    public function index()
+    {
+        return {{modelName}}::all();
+    }
+
+    public function store({{modelName}}Request $request)
+    {
+        ${{modelVariable}} = {{modelName}}::create($request->validated());
+        return response()->json(${{modelVariable}}, 201);
+    }
+
+    public function show({{modelName}} ${{modelVariable}})
+    {
+        return response()->json(${{modelVariable}});
+    }
+
+    public function update({{modelName}}Request $request, {{modelName}} ${{modelVariable}})
+    {
+        ${{modelVariable}}->update($request->validated());
+        return response()->json(${{modelVariable}});
+    }
+
+    public function destroy({{modelName}} ${{modelVariable}})
+    {
+        ${{modelVariable}}->delete();
+        return response()->json(null, 204);
+    }
+}

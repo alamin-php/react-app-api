@@ -44,7 +44,7 @@ class GenerateCrud extends Command
         $this->generateModel($modelName, $fieldArray, $relations);
         $this->generateMigration($modelName, $fieldArray);
         $this->generateController($modelName);
-        $this->generateRequests($modelName);
+        $this->generateRequests($modelName, $fieldArray);
         $this->generateViews($modelName);
 
         $this->info("CRUD for {$modelName} generated successfully!");
@@ -152,10 +152,12 @@ class {$modelName} extends Model
     {
         // Get the fully qualified controller class name
         $controllerNamespace = "App\\Http\\Controllers\\{$modelName}Controller";
+        $resourceName = Str::lower(Str::plural($modelName));
 
         // Define the route string for the API and Web routes
-        $apiRoute = "Route::apiResource('{$modelName}s', {$controllerNamespace}::class);";
-        $webRoute = "Route::resource('{$modelName}s', {$controllerNamespace}::class);";
+        // Str::snake(Str::plural($modelName));
+        $apiRoute = "Route::apiResource('{$resourceName}', {$controllerNamespace}::class);";
+        $webRoute = "Route::resource('{$resourceName}', {$controllerNamespace}::class);";
 
         // Add API route to api.php
         $apiFilePath = base_path('routes/api.php');
@@ -169,15 +171,36 @@ class {$modelName} extends Model
 
     protected function generateController($modelName)
     {
-        $controllerTemplate = file_get_contents(resource_path('stubs/controller.stub'));
+        // Load the controller stub template
+        $controllerTemplate = file_get_contents(app_path('Console/Commands/stubs/controller.stub'));
+
+        // Replace placeholders in the template
         $controllerTemplate = str_replace('{{modelName}}', $modelName, $controllerTemplate);
+        $controllerTemplate = str_replace('{{modelVariable}}', strtolower($modelName), $controllerTemplate);  // Replaces with model instance variable, e.g. $employee
+
+        // Save the generated controller to the correct path
         File::put(app_path("Http/Controllers/{$modelName}Controller.php"), $controllerTemplate);
+
+        // Call a method to generate routes (if needed)
         $this->generateRoutes($modelName);
     }
-    protected function generateRequests($modelName)
+    protected function generateRequests($modelName, $fields)
     {
-        $this->call('make:request', ['name' => "{$modelName}StoreRequest"]);
-        $this->call('make:request', ['name' => "{$modelName}UpdateRequest"]);
+        $path = app_path("Http/Requests/{$modelName}Request.php");
+        $stub = file_get_contents(app_path('Console/Commands/stubs/request.stub'));
+        $stub = str_replace('{{model}}', $modelName, $stub);
+
+        // Generate the validation rules dynamically based on fields
+        $fieldsRules = '';
+        foreach ($fields as $field) {
+            list($name, $type) = explode(':', $field);
+            // This example assumes that every field is required
+            $fieldsRules .= "'{$name}' => 'required|{$type}',\n            ";
+        }
+
+        // Replace the placeholder with the actual validation rules
+        $stub = str_replace('{{fields_rules}}', rtrim($fieldsRules), $stub);
+        File::put($path, $stub);
     }
 
     protected function generateViews($modelName)
@@ -185,10 +208,25 @@ class {$modelName} extends Model
         $viewPath = resource_path("views/" . Str::snake(Str::plural($modelName)));
         File::ensureDirectoryExists($viewPath);
 
-        File::put("{$viewPath}/index.blade.php", "<h1>{$modelName} Index</h1>");
+        // File::put("{$viewPath}/index.blade.php", "<h1>{$modelName} Index</h1>");
+        File::put("{$viewPath}/index.blade.php", $this->getStub('index.stub', $modelName));
         File::put("{$viewPath}/create.blade.php", "<h1>Create {$modelName}</h1>");
         File::put("{$viewPath}/edit.blade.php", "<h1>Edit {$modelName}</h1>");
         File::put("{$viewPath}/show.blade.php", "<h1>Show {$modelName}</h1>");
     }
+
+    protected function getStub($stub, $modelName)
+    {
+        // $stubPath = resource_path("Console/Commands/stubs/{$stub}");
+        $stubPath = app_path("Console/Commands/stubs/{$stub}");
+        $stubContent = file_get_contents($stubPath);
+
+        return str_replace(
+            ['{{ modelName }}', '{{ modelVariable }}', '{{ modelVariablePlural }}', '{{ routeName }}'],
+            [$modelName, strtolower($modelName), Str::plural(strtolower($modelName)), Str::plural(strtolower($modelName))],
+            $stubContent
+        );
+    }
+
 
 }
