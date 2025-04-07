@@ -228,15 +228,22 @@ class {$modelName} extends Model
         $stub = str_replace('{{model}}', $modelName, $stub);
 
         $fieldsRules = '';
-
         foreach ($fields as $field) {
             if (strpos($field, ':') !== false) {
                 [$name, $type] = explode(':', $field, 2);
-
-                // Handle enum fields
+                // Handle enum fields with preg_match
                 if (preg_match('/enum\((.*)\)/', $type, $matches)) {
-                    $enumValues = $matches[1]; // get values between enum(...)
-                    $fieldsRules .= "'{$name}' => 'required|in:{$enumValues}',\n            ";
+                    $enumValues = $matches[1];  // Get values between enum(...)
+
+                    // Clean up and format the values into a comma-separated string
+                    $enumValues = str_replace(' ', '', $enumValues);  // Remove spaces
+                    $enumArray = explode(',', $enumValues);  // Split by commas
+
+                    // Add quotes around the values and join them into a single string
+                    $enumString = implode(',', array_map(fn($v) => "'{$v}'", $enumArray));
+
+                    // Add to validation rules in the 'required|in:' format
+                    $fieldsRules .= "'{$name}' => 'required|in:{$enumString}',\n            ";
                 }
                 // Handle text fields as nullable
                 elseif ($type == 'text') {
@@ -248,6 +255,7 @@ class {$modelName} extends Model
                 }
             }
         }
+
 
 
 
