@@ -38,6 +38,7 @@ class GenerateCrud extends Command
         $relations = $this->option('relations');
 
         $fieldArray = $this->parseFields($fields);
+        // dd($fieldArray);
 
         $this->info("Generating CRUD for: {$modelName}");
 
@@ -50,36 +51,71 @@ class GenerateCrud extends Command
         $this->info("CRUD for {$modelName} generated successfully!");
     }
 
+    // protected function parseFields($fields)
+    // {
+    //     if (!$fields)
+    //         return [];
+
+    //     return array_map('trim', explode(',', $fields));
+    // }
+
     protected function parseFields($fields)
     {
         if (!$fields)
             return [];
 
-        return array_map('trim', explode(',', $fields));
+        $fieldArray = [];
+
+        preg_match_all('/(\w+):(\w+)(\((.*?)\))?/', $fields, $matches, PREG_SET_ORDER);
+
+        foreach ($matches as $match) {
+            $name = $match[1]; // name
+            $type = $match[2]; // string, text, enum
+            $values = isset($match[4]) ? $match[4] : null; // open,closed (optional)
+
+            if ($values) {
+                $fieldArray[] = "{$name}:{$type}:{$values}";
+            } else {
+                $fieldArray[] = "{$name}:{$type}";
+            }
+        }
+
+        return $fieldArray;
     }
+
 
     protected function parseFieldsForMigration($fieldArray)
     {
         $migrationFields = "";
 
         foreach ($fieldArray as $field) {
-            if (!str_contains($field, ':'))
+            // Skip empty or invalid fields
+            if (empty($field) || strpos($field, ':') === false) {
                 continue;
+            }
 
-            [$name, $type] = explode(':', $field, 2);  // Limit to 2 to avoid enum issue
+            // Separate name and type
+            [$name, $type] = explode(':', $field, 2);  // limit to 2 parts only
 
-            if (str_starts_with($type, "enum(")) {
-                preg_match("/enum\((.*)\)/", $type, $matches);
+            // Check if it's an enum field
+            if (str_starts_with($type, "enum:")) {
+                // Remove 'enum:' part and split values
+                $enumValues = str_replace('enum:', '', $type);  // open,closed
+                $enumArray = explode(',', $enumValues);
+                $enumArray = array_map(fn($v) => "'".trim($v)."'", $enumArray);  // Remove spaces
+                $enumString = implode(', ', $enumArray);
 
-                $enumValues = isset($matches[1]) ? $matches[1] : '';
-                $migrationFields .= "\t\t\t\$table->enum('{$name}', [{$enumValues}]);\n";
+                $migrationFields .= "\t\t\t\$table->enum('{$name}', [{$enumString}]);\n";
             } else {
+                // Handle other types like string, text, integer, etc.
                 $migrationFields .= "\t\t\t\$table->{$type}('{$name}');\n";
             }
         }
 
         return $migrationFields;
     }
+
+
 
     protected function parseFieldsForFillable($fieldArray)
     {
@@ -131,6 +167,7 @@ class {$modelName} extends Model
     {
         $tableName = Str::snake(Str::plural($modelName));
         $migrationFields = $this->parseFieldsForMigration($fieldArray);
+        // dd($migrationFields);
 
         $this->call('make:migration', [
             'name' => "create_{$tableName}_table",
@@ -190,18 +227,35 @@ class {$modelName} extends Model
         $stub = file_get_contents(app_path('Console/Commands/stubs/request.stub'));
         $stub = str_replace('{{model}}', $modelName, $stub);
 
-        // Generate the validation rules dynamically based on fields
         $fieldsRules = '';
+
         foreach ($fields as $field) {
-            list($name, $type) = explode(':', $field);
-            // This example assumes that every field is required
-            $fieldsRules .= "'{$name}' => 'required|{$type}',\n            ";
+            if (strpos($field, ':') !== false) {
+                [$name, $type] = explode(':', $field, 2);
+
+                // Handle enum fields
+                if (preg_match('/enum\((.*)\)/', $type, $matches)) {
+                    $enumValues = $matches[1]; // get values between enum(...)
+                    $fieldsRules .= "'{$name}' => 'required|in:{$enumValues}',\n            ";
+                }
+                // Handle text fields as nullable
+                elseif ($type == 'text') {
+                    $fieldsRules .= "'{$name}' => 'nullable|{$type}',\n            ";
+                }
+                // Other types as required
+                else {
+                    $fieldsRules .= "'{$name}' => 'required|{$type}',\n            ";
+                }
+            }
         }
 
-        // Replace the placeholder with the actual validation rules
+
+
         $stub = str_replace('{{fields_rules}}', rtrim($fieldsRules), $stub);
         File::put($path, $stub);
     }
+
+
 
     protected function generateViews($modelName)
     {
