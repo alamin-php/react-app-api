@@ -229,8 +229,10 @@ class GenerateCrud extends Command
                     $enumString = $enumValues; // No quotes needed
 
                     $fieldsRules .= "'{$name}' => 'required|in:{$enumString}',\n            ";
+                } elseif ($type == 'string') {
+                    $fieldsRules .= "'{$name}' => 'required|{$type}|max:255',\n            ";
                 } elseif ($type == 'text') {
-                    $fieldsRules .= "'{$name}' => 'nullable|{$type}',\n            ";
+                    $fieldsRules .= "'{$name}' => 'nullable|string',\n            ";
                 } else {
                     $fieldsRules .= "'{$name}' => 'required|{$type}',\n            ";
                 }
