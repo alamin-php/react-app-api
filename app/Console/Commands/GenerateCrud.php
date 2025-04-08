@@ -51,14 +51,6 @@ class GenerateCrud extends Command
         $this->info("CRUD for {$modelName} generated successfully!");
     }
 
-    // protected function parseFields($fields)
-    // {
-    //     if (!$fields)
-    //         return [];
-
-    //     return array_map('trim', explode(',', $fields));
-    // }
-
     protected function parseFields($fields)
     {
         if (!$fields)
@@ -89,20 +81,18 @@ class GenerateCrud extends Command
         $migrationFields = "";
 
         foreach ($fieldArray as $field) {
-            // Skip empty or invalid fields
             if (empty($field) || strpos($field, ':') === false) {
                 continue;
             }
 
-            // Separate name and type
-            [$name, $type] = explode(':', $field, 2);  // limit to 2 parts only
+            [$name, $type] = explode(':', $field, 2);
 
             // Check if it's an enum field
             if (str_starts_with($type, "enum:")) {
                 // Remove 'enum:' part and split values
                 $enumValues = str_replace('enum:', '', $type);  // open,closed
                 $enumArray = explode(',', $enumValues);
-                $enumArray = array_map(fn($v) => "'".trim($v)."'", $enumArray);  // Remove spaces
+                $enumArray = array_map(fn($v) => "'" . trim($v) . "'", $enumArray);  // Remove spaces
                 $enumString = implode(', ', $enumArray);
 
                 $migrationFields .= "\t\t\t\$table->enum('{$name}', [{$enumString}]);\n";
@@ -116,6 +106,30 @@ class GenerateCrud extends Command
     }
 
 
+    protected function generateModel($modelName, $fieldArray, $relations)
+    {
+        $fillable = $this->parseFieldsForFillable($fieldArray);
+
+        $relationMethods = "";
+        if ($relations) {
+            $relationArray = explode(',', $relations);
+            foreach ($relationArray as $relation) {
+                [$name, $type] = explode(':', $relation);
+                $relationMethods .= "\n\tpublic function {$name}()\n\t{\n";
+                $relationMethods .= "\t\treturn \$this->{$type}(" . Str::studly(Str::singular($name)) . "::class);\n\t}\n";
+            }
+        }
+
+        $stub = file_get_contents(app_path('Console/Commands/stubs/model.stub'));
+
+        $stub = str_replace(
+            ['{{model}}', '{{fillable}}', '{{relations}}'],
+            [$modelName, $fillable, $relationMethods],
+            $stub
+        );
+
+        File::put(app_path("Models/{$modelName}.php"), $stub);
+    }
 
     protected function parseFieldsForFillable($fieldArray)
     {
@@ -131,37 +145,6 @@ class GenerateCrud extends Command
         return implode(', ', $fields);
     }
 
-    protected function generateModel($modelName, $fieldArray, $relations)
-    {
-        $fillable = $this->parseFieldsForFillable($fieldArray);
-
-        $relationMethods = "";
-        if ($relations) {
-            $relationArray = explode(',', $relations);
-            foreach ($relationArray as $relation) {
-                [$name, $type] = explode(':', $relation);
-                $relationMethods .= "\n\tpublic function {$name}() {\n";
-                $relationMethods .= "\t\treturn \$this->{$type}(" . Str::studly(Str::singular($name)) . "::class);\n\t}\n";
-            }
-        }
-
-        $modelTemplate = "<?php
-
-namespace App\Models;
-
-use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Model;
-
-class {$modelName} extends Model
-{
-    use HasFactory;
-
-    protected \$fillable = [{$fillable}];
-    {$relationMethods}
-}";
-
-        File::put(app_path("Models/{$modelName}.php"), $modelTemplate);
-    }
 
     protected function generateMigration($modelName, $fieldArray)
     {
@@ -231,46 +214,38 @@ class {$modelName} extends Model
         foreach ($fields as $field) {
             if (strpos($field, ':') !== false) {
                 [$name, $type] = explode(':', $field, 2);
-                // Handle enum fields with preg_match
+
+                // Fix enum type from enum:open,closed to enum(open,closed)
+                if (str_starts_with($type, 'enum:')) {
+                    $enumValues = substr($type, 5); // remove enum:
+                    $type = "enum({$enumValues})";
+                }
+
+                // Handle enum fields properly
                 if (preg_match('/enum\((.*)\)/', $type, $matches)) {
-                    $enumValues = $matches[1];  // Get values between enum(...)
+                    $enumValues = $matches[1];  // inside enum(...)
 
-                    // Clean up and format the values into a comma-separated string
-                    $enumValues = str_replace(' ', '', $enumValues);  // Remove spaces
-                    $enumArray = explode(',', $enumValues);  // Split by commas
+                    $enumValues = str_replace(' ', '', $enumValues); // Remove any space
+                    $enumString = $enumValues; // No quotes needed
 
-                    // Add quotes around the values and join them into a single string
-                    $enumString = implode(',', array_map(fn($v) => "'{$v}'", $enumArray));
-
-                    // Add to validation rules in the 'required|in:' format
                     $fieldsRules .= "'{$name}' => 'required|in:{$enumString}',\n            ";
-                }
-                // Handle text fields as nullable
-                elseif ($type == 'text') {
+                } elseif ($type == 'text') {
                     $fieldsRules .= "'{$name}' => 'nullable|{$type}',\n            ";
-                }
-                // Other types as required
-                else {
+                } else {
                     $fieldsRules .= "'{$name}' => 'required|{$type}',\n            ";
                 }
             }
         }
-
-
-
 
         $stub = str_replace('{{fields_rules}}', rtrim($fieldsRules), $stub);
         File::put($path, $stub);
     }
 
 
-
     protected function generateViews($modelName)
     {
         $viewPath = resource_path("views/" . Str::snake(Str::plural($modelName)));
         File::ensureDirectoryExists($viewPath);
-
-        // File::put("{$viewPath}/index.blade.php", "<h1>{$modelName} Index</h1>");
         File::put("{$viewPath}/index.blade.php", $this->getStub('index.stub', $modelName));
         File::put("{$viewPath}/create.blade.php", "<h1>Create {$modelName}</h1>");
         File::put("{$viewPath}/edit.blade.php", "<h1>Edit {$modelName}</h1>");
