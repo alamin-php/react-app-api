@@ -1,1 +1,0 @@
-<h1>Invoice Index</h1>
